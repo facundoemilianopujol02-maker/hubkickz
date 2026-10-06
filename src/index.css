@@ -1,0 +1,611 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ==========================================================================
+   REGISTRO DE FUENTE CUSTOM: PURGO DEMO
+   ========================================================================== */
+@font-face {
+  font-family: 'Purgo';
+  src: url('./assets/fonts/purgo-demo.regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* ==========================================================================
+   RESET Y ESTILOS BASE
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #050505;
+  color: #ffffff;
+  font-family: 'Montserrat', sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.site-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   HEADER Y NAVEGACIÓN
+   ========================================================================== */
+
+.site-header {
+  background-color: #0a0a0a;
+  border-bottom: 1px solid #1a1a1a;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 18px 40px;
+}
+
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-logo-text {
+  cursor: pointer;
+  user-select: none;
+}
+
+.brand-title {
+  font-family: 'Purgo', serif;
+  font-size: 2.1rem;
+  letter-spacing: 3px;
+  font-weight: normal;
+  color: #ffffff;
+}
+
+.brand-subtitle {
+  display: block;
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  color: #a3a3a3;
+  margin-top: -2px;
+}
+
+.main-nav {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.nav-link {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 300;
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  padding: 6px 0;
+  transition: opacity 0.2s ease;
+  position: relative;
+  text-transform: uppercase;
+}
+
+.nav-link:hover {
+  opacity: 0.8;
+}
+
+.nav-link.active {
+  font-weight: 500;
+  opacity: 1;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #ff0015;
+  box-shadow: 0 0 10px rgba(255, 0, 21, 0.8);
+  opacity: 0;
+  transform: scaleX(0);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.nav-link.active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.nav-icons-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nav-icon-btn {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  position: relative;
+  font-size: 0.8rem;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background-color: #ff0015;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-badge-btn {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: #ff0015;
+  font-weight: 700;
+}
+
+.logout-icon-btn {
+  color: #a3a3a3;
+  transition: color 0.2s;
+}
+
+.logout-icon-btn:hover {
+  color: #ff0015;
+}
+
+/* ==========================================================================
+   TILDE MANUAL PARA TÍTULOS
+   ========================================================================== */
+
+.tilde-char {
+  position: relative;
+  display: inline-block;
+}
+
+.tilde-char::before {
+  content: '';
+  position: absolute;
+  width: 0.16em;
+  height: 0.05em;
+  background-color: currentColor;
+  border-radius: 0.5px;
+}
+
+.tilde-i::before,
+.tilde-a::before,
+.tilde-e::before,
+.tilde-o::before,
+.tilde-u::before {
+  top: -0.1em;
+  left: 50%;
+  transform: translateX(-50%) rotate(-20deg);
+}
+
+/* ==========================================================================
+   HERO BANNER
+   ========================================================================== */
+
+.hero-banner {
+  position: relative;
+  width: 100%;
+  height: 55vh;
+  min-height: 380px;
+  background: url('https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=1600&q=80') center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.3) 0%, rgba(5, 5, 5, 0.95) 100%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hk-hero-logo-wrapper {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hk-hero-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 20px rgba(225, 29, 72, 0.75));
+  animation: spinLogo 22s linear infinite;
+}
+
+@keyframes spinLogo {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   SECCIÓN CATÁLOGO Y TARJETAS DE PRODUCTOS
+   ========================================================================== */
+
+.catalog-section,
+.page-container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 50px 20px;
+}
+
+.section-title-wrap {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.section-title-wrap h2 {
+  font-family: 'Purgo', serif;
+  font-size: 2.4rem;
+  letter-spacing: 2px;
+  font-weight: normal;
+  text-transform: uppercase;
+}
+
+.subtitle-text {
+  font-family: 'Montserrat', sans-serif;
+  color: #cccccc;
+  font-size: 0.85rem;
+  font-weight: 300;
+  margin-top: 10px;
+  letter-spacing: 1px;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 30px;
+}
+
+.status-message {
+  text-align: center;
+  color: #737373;
+  font-size: 1rem;
+  padding: 60px 0;
+}
+
+.product-card {
+  background-color: #08080a;
+  border: 1px solid #1a1a1e;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.product-card:hover {
+  border-color: #333338;
+}
+
+.product-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 10px 16px;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+}
+
+.product-card-category {
+  color: #737373;
+  font-weight: 500;
+}
+
+.product-card-tag {
+  color: #ff0015;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.product-image-container {
+  width: 100%;
+  height: 260px;
+  background-color: #050505;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image {
+  transform: scale(1.03);
+}
+
+.product-no-image {
+  color: #525252;
+  font-size: 0.85rem;
+}
+
+.product-info {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  justify-content: space-between;
+}
+
+.product-title {
+  font-family: 'Purgo', serif;
+  font-size: 1.15rem;
+  font-weight: normal;
+  letter-spacing: 1px;
+  color: #ffffff;
+  margin-bottom: 14px;
+  line-height: 1.3;
+}
+
+.product-sizes-section {
+  margin-bottom: 18px;
+}
+
+.sizes-label {
+  display: block;
+  font-size: 0.65rem;
+  color: #737373;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.sizes-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.size-btn {
+  background-color: #121216;
+  border: 1px solid #26262b;
+  color: #a3a3a3;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.size-btn:hover {
+  border-color: #52525b;
+  color: #ffffff;
+}
+
+.size-btn.active {
+  background-color: #ff0015;
+  border-color: #ff0015;
+  color: #ffffff;
+}
+
+.product-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid #141418;
+}
+
+.product-price {
+  font-family: 'Purgo', serif;
+  font-size: 1.4rem;
+  letter-spacing: 1px;
+  color: #ffffff;
+}
+
+.add-to-cart-btn {
+  background-color: #ffffff;
+  color: #000000;
+  border: none;
+  padding: 8px 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.add-to-cart-btn:hover {
+  background-color: #e5e5e5;
+}
+
+.add-to-cart-btn:active {
+  transform: scale(0.97);
+}
+
+/* ==========================================================================
+   MODALES
+   ========================================================================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(5, 5, 5, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.auth-modal-content {
+  background-color: #0a0a0a;
+  border: 1px solid #262626;
+  border-radius: 16px;
+  padding: 32px 24px;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+}
+
+.close-modal-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #a3a3a3;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.close-modal-btn:hover {
+  color: #ffffff;
+}
+
+.notice-modal-card {
+  display: flex;
+  max-width: 850px;
+  width: 90%;
+  background-color: #08080a;
+  border: 1px solid #1a1a1e;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95);
+  animation: fadeInModal 0.25s ease-out;
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.notice-modal-image-side {
+  flex: 1;
+  position: relative;
+  min-height: 380px;
+}
+
+.notice-modal-image-side img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.85);
+}
+
+.notice-modal-content-side {
+  flex: 1;
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background-color: #08080a;
+}
+
+.notice-title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 800;
+  font-size: 1.8rem;
+  line-height: 1.25;
+  color: #ffffff;
+  margin-bottom: 20px;
+  letter-spacing: -0.5px;
+}
+
+.notice-description {
+  font-family: 'Montserrat', sans-serif;
+  color: #a1a1aa;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin-bottom: 32px;
+  max-width: 320px;
+}
+
+.notice-btn-understood {
+  background-color: #ff0015;
+  color: #ffffff;
+  border: none;
+  width: 100%;
+  max-width: 220px;
+  padding: 14px 0;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.notice-btn-understood:hover {
+  background-color: #d90012;
+}
+
+.notice-btn-understood:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 768px) {
+  .notice-modal-card {
+    flex-direction: column;
+    max-width: 400px;
+  }
+
+  .notice-modal-image-side {
+    height: 200px;
+    min-height: 200px;
+  }
+
+  .notice-modal-content-side {
+    padding: 32px 24px;
+  }
+
+  .notice-title {
+    font-size: 1.4rem;
+  }
+}
