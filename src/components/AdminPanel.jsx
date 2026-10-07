@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('agregar');
@@ -14,19 +14,25 @@ export default function AdminPanel() {
   const [imagenFrenteFile, setImagenFrenteFile] = useState(null);
   const [imagenEspaldaFile, setImagenEspaldaFile] = useState(null);
   
+  // Selector para clasificar el destino del producto ('stock' o 'encargo')
+  const [tipoProducto, setTipoProducto] = useState('stock');
+
   const [loading, setLoading] = useState(false);
   const [productos, setProductos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
 
-  // Filtro de período para estadísticas ('3d', '7d', '15d', '30d', '6m', '12m')
   const [periodoEstadistica, setPeriodoEstadistica] = useState('30d');
 
   const CLOUD_NAME = 'geavvy5g';
   const UPLOAD_PRESET = 'hubkickz_productos';
 
   const tallesDisponibles = ['S', 'M', 'L', 'XL', 'XXL'];
+
+  // Separar productos por su clasificación
+  const productosStock = productos.filter(p => p.tipo !== 'encargo');
+  const productosEncargos = productos.filter(p => p.tipo === 'encargo');
 
   useEffect(() => {
     if (categoria === 'ROPA') {
@@ -36,10 +42,15 @@ export default function AdminPanel() {
     }
   }, [categoria]);
 
+  // Sincronización en tiempo real de productos y pedidos desde Firestore
   useEffect(() => {
-    obtenerProductos();
-    
-    // Escuchar pedidos en tiempo real desde Firebase
+    const unsubscribeProductos = onSnapshot(collection(db, 'productos'), (snapshot) => {
+      const listaProductos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProductos(listaProductos);
+    }, (err) => {
+      console.error('Error al obtener productos:', err);
+    });
+
     const unsubscribePedidos = onSnapshot(collection(db, 'pedidos'), (snapshot) => {
       const listaPedidos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPedidos(listaPedidos);
@@ -47,18 +58,11 @@ export default function AdminPanel() {
       console.error('Error al obtener pedidos:', err);
     });
 
-    return () => unsubscribePedidos();
+    return () => {
+      unsubscribeProductos();
+      unsubscribePedidos();
+    };
   }, []);
-
-  const obtenerProductos = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'productos'));
-      const lista = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setProductos(lista);
-    } catch (err) {
-      console.error('Error al obtener productos:', err);
-    }
-  };
 
   const toggleTalle = (talle) => {
     if (tallesSeleccionados.includes(talle)) {
@@ -112,7 +116,9 @@ export default function AdminPanel() {
         talles: categoria === 'PERFUMES' ? [] : tallesSeleccionados,
         imagenUrl: imagenUrl || '',
         imagenEspaldaUrl: imagenEspaldaUrl || '',
-        imagenes: imagenesArray
+        imagenes: imagenesArray,
+        tipo: tipoProducto,
+        createdAt: new Date()
       };
 
       await addDoc(collection(db, 'productos'), nuevoProducto);
@@ -122,8 +128,7 @@ export default function AdminPanel() {
       setPrecio('');
       setImagenFrenteFile(null);
       setImagenEspaldaFile(null);
-
-      obtenerProductos();
+      setTipoProducto('stock');
 
     } catch (err) {
       console.error('Error al crear el producto:', err);
@@ -137,45 +142,115 @@ export default function AdminPanel() {
     if (window.confirm('¿Estás seguro de eliminar este artículo?')) {
       try {
         await deleteDoc(doc(db, 'productos', id));
-        obtenerProductos();
       } catch (err) {
         console.error('Error al eliminar:', err);
       }
     }
   };
 
-  // Cambiar estado de un pedido
   const handleCambiarEstadoPedido = async (pedidoId, nuevoEstado) => {
     try {
       const pedidoRef = doc(db, 'pedidos', pedidoId);
-      await updateDoc(pedidoRef, { estado: nuevoEstado });
+      const ahora = new Date();
+      const updateData = { 
+        estado: nuevoEstado, 
+        updatedAt: ahora 
+      };
+      
+      const estNorm = (nuevoEstado || '').toLowerCase();
+      if (estNorm.includes('entregado') || estNorm.includes('recibido')) {
+        updateData.fechaEntrega = ahora;
+      }
+
+      await updateDoc(pedidoRef, updateData);
     } catch (err) {
       console.error('Error al actualizar estado del pedido:', err);
       alert('Hubo un error al actualizar el estado.');
     }
   };
 
-  // Filtrado de pedidos según el período seleccionado y estado 'recibido/entregado'
+  // Parser robusto para parsear fechas de Firestore, cadenas ISO o DD/MM/YYYY sin errores de zona horaria
+  const parsearFecha = (val) => {
+    if (!val) return null;
+    
+    if (val.toDate && typeof val.toDate === 'function') {
+      return val.toDate();
+    }
+    if (val.seconds) {
+      return new Date(val.seconds * 1000);
+    }
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return val;
+    }
+    if (typeof val === 'number') {
+      return new Date(val);
+    }
+    
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      // Parsear formato DD/MM/YYYY o DD-MM-YYYY explícitamente
+      if (trimmed.includes('/') || trimmed.includes('-')) {
+        const parts = trimmed.replace(/-/g, '/').split('/');
+        if (parts.length === 3) {
+          const d = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          const y = parseInt(parts[2], 10);
+          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+            const fullYear = y < 100 ? 2000 + y : y;
+            const parsedCustom = new Date(fullYear, m - 1, d);
+            if (!isNaN(parsedCustom.getTime())) return parsedCustom;
+          }
+        }
+      }
+      const parsedIso = new Date(trimmed);
+      if (!isNaN(parsedIso.getTime())) return parsedIso;
+    }
+
+    return null;
+  };
+
+  const obtenerFechaPedido = (p) => {
+    // 1. Preferir la fecha de entrega o de última actualización
+    const fechaEnt = parsearFecha(p.fechaEntrega) || parsearFecha(p.updatedAt);
+    if (fechaEnt) return fechaEnt;
+
+    // 2. Fecha de creación original
+    const fechaCreacion = parsearFecha(p.createdAt) || parsearFecha(p.fecha) || parsearFecha(p.timestamp);
+    if (fechaCreacion) return fechaCreacion;
+
+    return new Date();
+  };
+
+  const calcularMontoPedido = (p) => {
+    if (p.totalAmount !== undefined && p.totalAmount !== null && !isNaN(Number(p.totalAmount))) {
+      return Number(p.totalAmount);
+    }
+    if (p.total !== undefined && p.total !== null && !isNaN(Number(p.total))) {
+      return Number(p.total);
+    }
+    if (Array.isArray(p.cart) && p.cart.length > 0) {
+      return p.cart.reduce((sum, item) => {
+        const price = Number(item.precio || item.price || 0);
+        const qty = Number(item.quantity || item.cantidad || 1);
+        return sum + (price * qty);
+      }, 0);
+    }
+    return 0;
+  };
+
   const filtrarPedidosPorPeriodo = () => {
     const ahora = new Date();
-    
-    // Primero filtramos los que estén recibidos/entregados (asegurando flexibilidad en tildes/espacios)
+
     const pedidosEntregados = pedidos.filter(p => {
       const est = (p.estado || '').toLowerCase().trim();
-      return est === 'recibido/entregado' || est === 'recibido' || est === 'entregado';
+      return est.includes('entregado') || est.includes('recibido') || est.includes('completado');
     });
 
-    return pedidosEntregados.filter(p => {
-      // Intentamos extraer la fecha del pedido (soporta timestamp de Firestore o campos de texto/string)
-      let fechaPedido;
-      if (p.createdAt?.toDate) {
-        fechaPedido = p.createdAt.toDate();
-      } else if (p.fecha) {
-        fechaPedido = new Date(p.fecha);
-      } else {
-        return true; // Si no tiene fecha registrada, se incluye por defecto
-      }
+    if (periodoEstadistica === 'todos') return pedidosEntregados;
 
+    return pedidosEntregados.filter(p => {
+      const fechaPedido = obtenerFechaPedido(p);
+      
       const diffTime = ahora - fechaPedido;
       const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
@@ -190,7 +265,7 @@ export default function AdminPanel() {
   };
 
   const pedidosFiltradosEstadisticas = filtrarPedidosPorPeriodo();
-  const totalVentasUSD = pedidosFiltradosEstadisticas.reduce((acc, p) => acc + (Number(p.totalAmount || p.total || 0), 0), 0);
+  const totalVentasUSD = pedidosFiltradosEstadisticas.reduce((acc, p) => acc + calcularMontoPedido(p), 0);
   const totalPedidosCompletados = pedidosFiltradosEstadisticas.length;
 
   return (
@@ -203,7 +278,7 @@ export default function AdminPanel() {
         </h2>
       </div>
 
-      {/* Menú de pestañas internas */}
+      {/* PESTAÑAS DE NAVEGACIÓN */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '30px', borderBottom: '1px solid #1f1f26', paddingBottom: '15px', flexWrap: 'wrap' }}>
         <button
           type="button"
@@ -238,7 +313,25 @@ export default function AdminPanel() {
             fontWeight: 'bold'
           }}
         >
-          STOCK ({productos.length})
+          STOCK ({productosStock.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('encargos')}
+          style={{
+            background: activeTab === 'encargos' ? '#ff1e2d' : '#0e0e12',
+            color: '#fff',
+            border: activeTab === 'encargos' ? '1px solid #ff1e2d' : '1px solid #1f1f26',
+            padding: '10px 16px',
+            borderRadius: '2px',
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            letterSpacing: '1.5px',
+            fontWeight: 'bold'
+          }}
+        >
+          ENCARGOS ({productosEncargos.length})
         </button>
 
         <button
@@ -281,9 +374,54 @@ export default function AdminPanel() {
       {error && <div style={{ background: '#260d0d', color: '#ff6b6b', padding: '10px', marginBottom: '15px', border: '1px solid #4a1515', fontSize: '0.85rem' }}>{error}</div>}
       {exito && <div style={{ background: '#0d2614', color: '#51cf66', padding: '10px', marginBottom: '15px', border: '1px solid #154a22', fontSize: '0.85rem' }}>{exito}</div>}
 
-      {/* PESTAÑA 1: AGREGAR PRODUCTO */}
+      {/* FORMULARIO DE AGREGAR PRODUCTO */}
       {activeTab === 'agregar' && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: '#0e0e12', padding: '15px', border: '1px solid #1f1f26', borderRadius: '2px' }}>
+            <label style={{ fontSize: '0.7rem', letterSpacing: '1.5px', color: '#ff1e2d', fontWeight: 'bold' }}>DESTINO DEL ARTÍCULO:</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setTipoProducto('stock')}
+                style={{
+                  flex: 1,
+                  background: tipoProducto === 'stock' ? '#ff1e2d' : '#16161c',
+                  color: '#fff',
+                  border: '1px solid',
+                  borderColor: tipoProducto === 'stock' ? '#ff1e2d' : '#2a2a35',
+                  padding: '10px',
+                  borderRadius: '2px',
+                  fontWeight: 'bold',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  letterSpacing: '1px'
+                }}
+              >
+                📦 STOCK NORMAL
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoProducto('encargo')}
+                style={{
+                  flex: 1,
+                  background: tipoProducto === 'encargo' ? '#ff1e2d' : '#16161c',
+                  color: '#fff',
+                  border: '1px solid',
+                  borderColor: tipoProducto === 'encargo' ? '#ff1e2d' : '#2a2a35',
+                  padding: '10px',
+                  borderRadius: '2px',
+                  fontWeight: 'bold',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  letterSpacing: '1px'
+                }}
+              >
+                🏷️ ENCARGO
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '0.7rem', letterSpacing: '1.5px', color: '#888' }}>NOMBRE DEL PRODUCTO</label>
             <input 
@@ -429,15 +567,15 @@ export default function AdminPanel() {
         </form>
       )}
 
-      {/* PESTAÑA 2: VER STOCK */}
+      {/* LISTADO DE STOCK EN TIENDA */}
       {activeTab === 'stock' && (
         <div>
-          <h3 style={{ fontSize: '1rem', letterSpacing: '1.5px', marginBottom: '20px' }}>INVENTARIO ACTUAL ({productos.length})</h3>
-          {productos.length === 0 ? (
-            <p style={{ color: '#777', fontSize: '0.85rem' }}>No hay productos cargados en el sistema.</p>
+          <h3 style={{ fontSize: '1rem', letterSpacing: '1.5px', marginBottom: '20px' }}>INVENTARIO STOCK EN TIENDA ({productosStock.length})</h3>
+          {productosStock.length === 0 ? (
+            <p style={{ color: '#777', fontSize: '0.85rem' }}>No hay productos de stock cargados en el sistema.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
-              {productos.map((prod) => (
+              {productosStock.map((prod) => (
                 <div key={prod.id} style={{ border: '1px solid #1f1f26', padding: '10px', borderRadius: '2px', background: '#0e0e12', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
                     {prod.imagenUrl ? (
@@ -445,6 +583,11 @@ export default function AdminPanel() {
                     ) : (
                       <div style={{ width: '100%', height: '140px', background: '#16161c', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: '11px', marginBottom: '8px' }}>Sin imagen</div>
                     )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.65rem', background: '#ff1e2d', color: '#fff', padding: '2px 6px', borderRadius: '2px' }}>
+                        STOCK
+                      </span>
+                    </div>
                     <h4 style={{ fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px', color: '#fff' }}>{prod.nombre}</h4>
                     <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: '4px' }}>{prod.categoria} / {prod.subcategoria}</p>
                     <p style={{ fontSize: '0.85rem', color: '#ff1e2d', fontWeight: 'bold', marginBottom: '10px' }}>${Number(prod.precio || 0).toLocaleString()} USD</p>
@@ -462,7 +605,45 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* PESTAÑA 3: GESTIÓN DE PEDIDOS */}
+      {/* LISTADO DE CATÁLOGO DE ENCARGOS */}
+      {activeTab === 'encargos' && (
+        <div>
+          <h3 style={{ fontSize: '1rem', letterSpacing: '1.5px', marginBottom: '20px' }}>CATÁLOGO DE ENCARGOS ({productosEncargos.length})</h3>
+          {productosEncargos.length === 0 ? (
+            <p style={{ color: '#777', fontSize: '0.85rem' }}>No hay artículos de encargo cargados en el sistema.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
+              {productosEncargos.map((prod) => (
+                <div key={prod.id} style={{ border: '1px solid #1f1f26', padding: '10px', borderRadius: '2px', background: '#0e0e12', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    {prod.imagenUrl ? (
+                      <img src={prod.imagenUrl} alt={prod.nombre} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '2px', marginBottom: '8px' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '140px', background: '#16161c', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: '11px', marginBottom: '8px' }}>Sin imagen</div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.65rem', background: '#222', color: '#fff', padding: '2px 6px', borderRadius: '2px', border: '1px solid #333' }}>
+                        ENCARGO
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: '600', marginBottom: '4px', color: '#fff' }}>{prod.nombre}</h4>
+                    <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: '4px' }}>{prod.categoria} / {prod.subcategoria}</p>
+                    <p style={{ fontSize: '0.85rem', color: '#ff1e2d', fontWeight: 'bold', marginBottom: '10px' }}>${Number(prod.precio || 0).toLocaleString()} USD</p>
+                  </div>
+                  <button 
+                    onClick={() => eliminarProducto(prod.id)}
+                    style={{ background: 'transparent', color: '#ff4d4d', border: '1px solid #4a1515', padding: '6px', borderRadius: '2px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.7rem', letterSpacing: '1px', width: '100%' }}
+                  >
+                    ELIMINAR
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* GESTIÓN DE PEDIDOS */}
       {activeTab === 'pedidos' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <h3 style={{ fontSize: '1rem', letterSpacing: '1.5px', marginBottom: '10px' }}>LISTADO DE PEDIDOS ({pedidos.length})</h3>
@@ -478,18 +659,17 @@ export default function AdminPanel() {
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
-                        <span style={{ fontSize: '0.7rem', color: '#ff1e2d', letterSpacing: '1px' }}>PEDIDOR / ID: {pedido.id.slice(0, 8)}...</span>
+                        <span style={{ fontSize: '0.7rem', color: '#ff1e2d', letterSpacing: '1px' }}>PEDIDO / ID: {pedido.id.slice(0, 8)}...</span>
                         <h4 style={{ fontSize: '0.95rem', color: '#fff', marginTop: '2px' }}>{pedido.nombre || pedido.cliente || 'Cliente sin nombre'}</h4>
                         <p style={{ fontSize: '0.8rem', color: '#888' }}>{pedido.email || 'Sin email'} {pedido.telefono ? `| ${pedido.telefono}` : ''}</p>
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: '0.7rem', color: '#888', display: 'block' }}>TOTAL ORDEN</span>
-                        <span style={{ fontSize: '1.1rem', color: '#ff1e2d', fontWeight: 'bold' }}>${Number(pedido.totalAmount || pedido.total || 0).toLocaleString()} USD</span>
+                        <span style={{ fontSize: '1.1rem', color: '#ff1e2d', fontWeight: 'bold' }}>${calcularMontoPedido(pedido).toLocaleString()} USD</span>
                       </div>
                     </div>
 
-                    {/* Productos del pedido */}
                     <div style={{ background: '#08080a', padding: '10px', borderRadius: '2px', border: '1px solid #16161c' }}>
                       <span style={{ fontSize: '0.65rem', color: '#666', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>ARTÍCULOS SOLICITADOS:</span>
                       {pedido.cart && pedido.cart.map((item, idx) => (
@@ -500,7 +680,6 @@ export default function AdminPanel() {
                       ))}
                     </div>
 
-                    {/* Selector de Estado del pedido */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginTop: '4px' }}>
                       <label style={{ fontSize: '0.7rem', letterSpacing: '1px', color: '#888' }}>ESTADO DEL PEDIDO:</label>
                       <select
@@ -534,14 +713,13 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* PESTAÑA 4: ESTADÍSTICAS */}
+      {/* PESTAÑA: ESTADÍSTICAS */}
       {activeTab === 'estadisticas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '1rem', letterSpacing: '1.5px' }}>MÉTRICAS Y VENTAS</h3>
             
-            {/* Filtros de Período */}
             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
               {[
                 { id: '3d', label: '3 DÍAS' },
@@ -549,7 +727,8 @@ export default function AdminPanel() {
                 { id: '15d', label: '15 DÍAS' },
                 { id: '30d', label: '30 DÍAS' },
                 { id: '6m', label: '6 MESES' },
-                { id: '12m', label: '12 MESES' }
+                { id: '12m', label: '12 MESES' },
+                { id: 'todos', label: 'HISTÓRICO' }
               ].map((per) => (
                 <button
                   key={per.id}
@@ -574,7 +753,7 @@ export default function AdminPanel() {
           </div>
 
           <p style={{ fontSize: '0.75rem', color: '#777', fontStyle: 'italic' }}>
-            * Nota: Las estadísticas solo contabilizan aquellos pedidos marcados con estado <b>RECIBIDO / ENTREGADO</b> dentro del período seleccionado.
+            * Nota: Las métricas contabilizan pedidos finalizados (estado <b>RECIBIDO / ENTREGADO</b>) dentro del período filtrado.
           </p>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
@@ -589,8 +768,13 @@ export default function AdminPanel() {
             </div>
 
             <div style={{ background: '#0e0e12', border: '1px solid #1f1f26', padding: '20px', borderRadius: '2px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#888', letterSpacing: '1px' }}>STOCK EN CATÁLOGO</span>
-              <h4 style={{ fontSize: '2rem', color: '#fff', marginTop: '5px' }}>{productos.length}</h4>
+              <span style={{ fontSize: '0.7rem', color: '#888', letterSpacing: '1px' }}>STOCK EN TIENDA</span>
+              <h4 style={{ fontSize: '2rem', color: '#fff', marginTop: '5px' }}>{productosStock.length}</h4>
+            </div>
+
+            <div style={{ background: '#0e0e12', border: '1px solid #1f1f26', padding: '20px', borderRadius: '2px' }}>
+              <span style={{ fontSize: '0.7rem', color: '#888', letterSpacing: '1px' }}>CATÁLOGO ENCARGOS</span>
+              <h4 style={{ fontSize: '2rem', color: '#fff', marginTop: '5px' }}>{productosEncargos.length}</h4>
             </div>
           </div>
         </div>

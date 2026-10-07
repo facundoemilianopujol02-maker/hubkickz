@@ -140,7 +140,11 @@ export default function App() {
     }
   };
 
+  // FILTRADO DE PRODUCTOS PARA LA TIENDA PRINCIPAL
   const productosFiltrados = productos.filter((p) => {
+    // Excluir productos de encargo del catálogo de stock principal
+    if (p.tipo === 'encargo') return false;
+
     if (activeCategory === 'INICIO' || activeCategory === 'TODOS') return true;
     
     const cat = (p.categoria || p.category || '').toUpperCase();
