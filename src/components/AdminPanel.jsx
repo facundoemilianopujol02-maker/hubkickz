@@ -25,6 +25,9 @@ export default function AdminPanel() {
 
   const [periodoEstadistica, setPeriodoEstadistica] = useState('30d');
 
+  // Estado para controlar el modal de la imagen del comprobante
+  const [modalComprobanteUrl, setModalComprobanteUrl] = useState(null);
+
   const CLOUD_NAME = 'geavvy5g';
   const UPLOAD_PRESET = 'hubkickz_productos';
 
@@ -169,7 +172,6 @@ export default function AdminPanel() {
     }
   };
 
-  // Parser robusto para parsear fechas de Firestore, cadenas ISO o DD/MM/YYYY sin errores de zona horaria
   const parsearFecha = (val) => {
     if (!val) return null;
     
@@ -188,7 +190,6 @@ export default function AdminPanel() {
     
     if (typeof val === 'string') {
       const trimmed = val.trim();
-      // Parsear formato DD/MM/YYYY o DD-MM-YYYY explícitamente
       if (trimmed.includes('/') || trimmed.includes('-')) {
         const parts = trimmed.replace(/-/g, '/').split('/');
         if (parts.length === 3) {
@@ -210,11 +211,9 @@ export default function AdminPanel() {
   };
 
   const obtenerFechaPedido = (p) => {
-    // 1. Preferir la fecha de entrega o de última actualización
     const fechaEnt = parsearFecha(p.fechaEntrega) || parsearFecha(p.updatedAt);
     if (fechaEnt) return fechaEnt;
 
-    // 2. Fecha de creación original
     const fechaCreacion = parsearFecha(p.createdAt) || parsearFecha(p.fecha) || parsearFecha(p.timestamp);
     if (fechaCreacion) return fechaCreacion;
 
@@ -227,6 +226,16 @@ export default function AdminPanel() {
     }
     if (p.total !== undefined && p.total !== null && !isNaN(Number(p.total))) {
       return Number(p.total);
+    }
+    if (p.totalUSD !== undefined && p.totalUSD !== null && !isNaN(Number(p.totalUSD))) {
+      return Number(p.totalUSD);
+    }
+    if (Array.isArray(p.items) && p.items.length > 0) {
+      return p.items.reduce((sum, item) => {
+        const price = Number(item.precio || item.price || 0);
+        const qty = Number(item.quantity || item.cantidad || 1);
+        return sum + (price * qty);
+      }, 0);
     }
     if (Array.isArray(p.cart) && p.cart.length > 0) {
       return p.cart.reduce((sum, item) => {
@@ -243,14 +252,13 @@ export default function AdminPanel() {
 
     const pedidosEntregados = pedidos.filter(p => {
       const est = (p.estado || '').toLowerCase().trim();
-      return est.includes('entregado') || est.includes('recibido') || est.includes('completado');
+      return est.includes('entregado') || est.includes('recibido') || est.includes('completado') || est.includes('aprobado');
     });
 
     if (periodoEstadistica === 'todos') return pedidosEntregados;
 
     return pedidosEntregados.filter(p => {
       const fechaPedido = obtenerFechaPedido(p);
-      
       const diffTime = ahora - fechaPedido;
       const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
@@ -269,8 +277,70 @@ export default function AdminPanel() {
   const totalPedidosCompletados = pedidosFiltradosEstadisticas.length;
 
   return (
-    <div style={{ maxWidth: '850px', margin: '30px auto', padding: '30px', background: '#08080a', color: '#e5e5e5', fontFamily: 'monospace, sans-serif', border: '1px solid #1a1a20', borderRadius: '4px' }}>
+    <div style={{ maxWidth: '850px', margin: '30px auto', padding: '30px', background: '#08080a', color: '#e5e5e5', fontFamily: 'monospace, sans-serif', border: '1px solid #1a1a20', borderRadius: '4px', position: 'relative' }}>
       
+      {/* MODAL PARA VER LA IMAGEN DEL COMPROBANTE EN GRANDE DENTRO DE LA MISMA PÁGINA */}
+      {modalComprobanteUrl && (
+        <div 
+          onClick={() => setModalComprobanteUrl(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              background: '#0e0e12',
+              border: '1px solid #1f1f26',
+              padding: '15px',
+              borderRadius: '4px',
+              maxWidth: '90%',
+              maxHeight: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}
+          >
+            <button 
+              onClick={() => setModalComprobanteUrl(null)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: '#ff1e2d',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '2px',
+                width: '30px',
+                height: '30px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '0.9rem'
+              }}
+            >
+              ✕
+            </button>
+            <h4 style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '10px', letterSpacing: '1px' }}>COMPROBANTE DE TRANSFERENCIA</h4>
+            <img 
+              src={modalComprobanteUrl} 
+              alt="Comprobante Ampliado" 
+              style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: '2px' }} 
+            />
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: '20px' }}>
         <span style={{ color: '#ff1e2d', fontSize: '0.75rem', letterSpacing: '1px' }}>// ADMIN CONTROL PANEL</span>
         <h2 style={{ fontSize: '1.8rem', letterSpacing: '1.5px', color: '#fff', marginTop: '4px', fontFamily: 'serif' }}>
@@ -653,32 +723,90 @@ export default function AdminPanel() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               {pedidos.map((pedido) => {
+                const clienteData = pedido.cliente || {};
+                const nombreCliente = clienteData.nombre || pedido.nombre || 'Cliente sin nombre';
+                const emailCliente = clienteData.email || pedido.email || 'Sin email';
+                const telefonoCliente = clienteData.telefono || pedido.telefono || '';
+                const itemsPedido = pedido.items || pedido.cart || [];
                 const estadoActual = (pedido.estado || 'pedido').toLowerCase();
+
                 return (
                   <div key={pedido.id} style={{ background: '#0e0e12', border: '1px solid #1f1f26', padding: '16px', borderRadius: '2px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
                         <span style={{ fontSize: '0.7rem', color: '#ff1e2d', letterSpacing: '1px' }}>PEDIDO / ID: {pedido.id.slice(0, 8)}...</span>
-                        <h4 style={{ fontSize: '0.95rem', color: '#fff', marginTop: '2px' }}>{pedido.nombre || pedido.cliente || 'Cliente sin nombre'}</h4>
-                        <p style={{ fontSize: '0.8rem', color: '#888' }}>{pedido.email || 'Sin email'} {pedido.telefono ? `| ${pedido.telefono}` : ''}</p>
+                        <h4 style={{ fontSize: '0.95rem', color: '#fff', marginTop: '2px' }}>{nombreCliente}</h4>
+                        <p style={{ fontSize: '0.8rem', color: '#888' }}>{emailCliente} {telefonoCliente ? `| ${telefonoCliente}` : ''}</p>
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontSize: '0.7rem', color: '#888', display: 'block' }}>TOTAL ORDEN</span>
-                        <span style={{ fontSize: '1.1rem', color: '#ff1e2d', fontWeight: 'bold' }}>${calcularMontoPedido(pedido).toLocaleString()} USD</span>
+                        <span style={{ fontSize: '1.1rem', color: '#ff1e2d', fontWeight: 'bold' }}>
+                          {pedido.totalUSD ? `$${pedido.totalUSD} USD` : `$${calcularMontoPedido(pedido).toLocaleString()} USD`}
+                        </span>
+                        {pedido.totalARS && (
+                          <span style={{ fontSize: '0.75rem', color: '#888', display: 'block' }}>
+                            (${pedido.totalARS.toLocaleString('es-AR')} ARS)
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <div style={{ background: '#08080a', padding: '10px', borderRadius: '2px', border: '1px solid #16161c' }}>
                       <span style={{ fontSize: '0.65rem', color: '#666', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>ARTÍCULOS SOLICITADOS:</span>
-                      {pedido.cart && pedido.cart.map((item, idx) => (
+                      {itemsPedido.map((item, idx) => (
                         <div key={idx} style={{ fontSize: '0.8rem', color: '#ccc', display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                          <span>• {item.nombre} {item.selectedSize ? `(Talle: ${item.selectedSize})` : ''} x{item.quantity || 1}</span>
-                          <span style={{ color: '#888' }}>${Number(item.precio || item.price || 0) * (item.quantity || 1)} USD</span>
+                          <span>• {item.nombre} {item.selectedSize ? `(Talle: ${item.selectedSize})` : ''} x{item.quantity || item.cantidad || 1}</span>
+                          <span style={{ color: '#888' }}>${Number(item.precio || item.price || 0) * (item.quantity || item.cantidad || 1)} USD</span>
                         </div>
                       ))}
                     </div>
+
+                    {/* SECCIÓN DE COMPROBANTE DE TRANSFERENCIA CON APERTURA MODAL EN LA MISMA PÁGINA */}
+                    {pedido.metodoPago === 'transferencia' && pedido.comprobanteUrl && (
+                      <div style={{ background: '#08080a', padding: '12px', borderRadius: '2px', border: '1px solid #1f1f26', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '0.65rem', color: '#ff1e2d', letterSpacing: '1px', fontWeight: 'bold' }}>
+                          COMPROBANTE DE TRANSFERENCIA ADJUNTO:
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <div 
+                            onClick={() => setModalComprobanteUrl(pedido.comprobanteUrl)}
+                            style={{ cursor: 'pointer', display: 'inline-block' }}
+                            title="Hacer clic para ampliar imagen"
+                          >
+                            <img 
+                              src={pedido.comprobanteUrl} 
+                              alt="Comprobante de pago" 
+                              style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '2px', border: '1px solid #2a2a35', transition: 'border-color 0.2s' }} 
+                              onMouseEnter={(e) => e.target.style.borderColor = '#ff1e2d'}
+                              onMouseLeave={(e) => e.target.style.borderColor = '#2a2a35'}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.75rem', color: '#aaa' }}>Imagen subida por el cliente al realizar el pedido.</span>
+                            <button
+                              type="button"
+                              onClick={() => setModalComprobanteUrl(pedido.comprobanteUrl)}
+                              style={{ 
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ff1e2d', 
+                                fontSize: '0.8rem', 
+                                textAlign: 'left',
+                                padding: 0,
+                                cursor: 'pointer', 
+                                fontWeight: 'bold', 
+                                letterSpacing: '0.5px',
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              Ampliar imagen en pantalla 🔍
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginTop: '4px' }}>
                       <label style={{ fontSize: '0.7rem', letterSpacing: '1px', color: '#888' }}>ESTADO DEL PEDIDO:</label>
@@ -699,9 +827,11 @@ export default function AdminPanel() {
                         }}
                       >
                         <option value="pedido">PEDIDO</option>
+                        <option value="pendiente de verificación">PENDIENTE DE VERIFICACIÓN</option>
                         <option value="abonado">ABONADO</option>
                         <option value="enviado">ENVIADO</option>
                         <option value="recibido/entregado">RECIBIDO / ENTREGADO</option>
+                        <option value="aprobado">APROBADO</option>
                       </select>
                     </div>
 
@@ -753,7 +883,7 @@ export default function AdminPanel() {
           </div>
 
           <p style={{ fontSize: '0.75rem', color: '#777', fontStyle: 'italic' }}>
-            * Nota: Las métricas contabilizan pedidos finalizados (estado <b>RECIBIDO / ENTREGADO</b>) dentro del período filtrado.
+            * Nota: Las métricas contabilizan pedidos finalizados (estado <b>RECIBIDO / ENTREGADO</b> o <b>APROBADO</b>) dentro del período filtrado.
           </p>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
@@ -763,7 +893,7 @@ export default function AdminPanel() {
             </div>
 
             <div style={{ background: '#0e0e12', border: '1px solid #1f1f26', padding: '20px', borderRadius: '2px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#888', letterSpacing: '1px' }}>PEDIDOS ENTREGADOS</span>
+              <span style={{ fontSize: '0.7rem', color: '#888', letterSpacing: '1px' }}>PEDIDOS ENTREGados</span>
               <h4 style={{ fontSize: '2rem', color: '#fff', marginTop: '5px' }}>{totalPedidosCompletados}</h4>
             </div>
 

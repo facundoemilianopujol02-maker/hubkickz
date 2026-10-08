@@ -47,10 +47,17 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState('INICIO'); 
   const [activeSubcategory, setActiveSubcategory] = useState(null);
   const [activeView, setActiveView] = useState('tienda'); 
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    const savedCart = localStorage.getItem('hubkickz_cart');
+    return savedCart ? JSON.parse(savedCart) : [];
+  });
 
   const [showRopaDropdown, setShowRopaDropdown] = useState(false);
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem('hubkickz_cart', JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -135,6 +142,7 @@ export default function App() {
     try {
       await signOut(auth);
       setActiveView('tienda');
+      setActiveCategory('INICIO');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
@@ -142,7 +150,6 @@ export default function App() {
 
   // FILTRADO DE PRODUCTOS PARA LA TIENDA PRINCIPAL
   const productosFiltrados = productos.filter((p) => {
-    // Excluir productos de encargo del catálogo de stock principal
     if (p.tipo === 'encargo') return false;
 
     if (activeCategory === 'INICIO' || activeCategory === 'TODOS') return true;
@@ -187,6 +194,66 @@ export default function App() {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        .site-header {
+          width: 100%;
+          background-color: #0b0b0e;
+          border-bottom: 1px solid #1f1f26;
+        }
+        .header-container {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 25px;
+          box-sizing: border-box;
+          gap: 15px;
+        }
+        .brand-logo-text {
+          text-align: left;
+          cursor: pointer;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .brand-title {
+          font-size: 1.7rem;
+          margin: 0;
+          line-height: 1.1;
+        }
+        .brand-subtitle {
+          font-size: 0.55rem;
+          display: block;
+          margin-top: 2px;
+        }
+        .main-nav {
+          display: flex;
+          gap: 15px;
+          align-items: center;
+          flex-wrap: wrap;
+          margin-left: 20px;
+        }
+        .nav-icons-group {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-shrink: 0;
+        }
+        @media (max-width: 1024px) {
+          .header-container {
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px 15px;
+          }
+          .brand-logo-text {
+            text-align: center;
+            margin: 0 auto;
+          }
+          .main-nav {
+            justify-content: center;
+            margin-left: 0;
           }
         }
       `}</style>
@@ -479,7 +546,7 @@ export default function App() {
             <section className="catalog-section">
               <div className="section-title-wrap">
                 <h2><TitledText text={activeSubcategory ? `${activeCategory} / ${activeSubcategory}` : (activeCategory === 'INICIO' ? 'CATÁLOGO EXCLUSIVO' : activeCategory)} /></h2>
-                <p className="subtitle-text">Todos los precios están expresados en USD (Se abonará en ARS al dólar oficial seleccionando Mercado Pago)</p>
+                <p className="subtitle-text">Todos los precios están expresados en USD (Se mostrara el precio en ARS al finalizar la compra)</p>
               </div>
 
               {loadingProducts ? (
@@ -513,9 +580,9 @@ export default function App() {
             cart={cart}
             totalAmount={totalCartUSD}
             clearCart={clearCart}
-            onOrderSuccess={(orderId) => {
-              alert(`¡Pedido #${orderId} realizado con éxito!`);
+            onOrderSuccess={() => {
               setActiveView('tienda');
+              setActiveCategory('INICIO');
             }}
           />
         </div>
